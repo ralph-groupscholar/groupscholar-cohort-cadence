@@ -14,3 +14,16 @@ bin/cohort-cadence summary --days 30
 ## Data
 
 Data is stored in `data/cadence.json` and can be versioned or shared as needed.
+
+## Database Sync (Optional)
+
+To push local cadence data into the Group Scholar Postgres database, set
+`GS_CADENCE_DATABASE_URL` (or `DATABASE_URL`) in the environment and run:
+
+```bash
+bin/cohort-cadence sync-db
+```
+
+This will create a dedicated schema (`groupscholar_cohort_cadence`) and upsert
+cohorts/touchpoints plus a sync event log. Install the dependency with
+`gem install pg` before syncing.

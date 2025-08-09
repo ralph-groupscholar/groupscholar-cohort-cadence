@@ -2,6 +2,7 @@
 
 require "date"
 require_relative "cadence_store"
+require_relative "cadence_db"
 
 module GroupScholar
   class CadenceCLI
@@ -44,6 +45,11 @@ module GroupScholar
         days = (option_value("days") || "30").to_i
         summary = @store.summary(days)
         puts render_summary(summary)
+      when "sync-db"
+        data = @store.load_store
+        db = CadenceDB.new
+        db.sync!(data)
+        puts "Synced #{data["cohorts"].size} cohorts and #{data["touchpoints"].size} touchpoints to Postgres."
       else
         puts usage
       end
@@ -109,6 +115,7 @@ module GroupScholar
           list-cohorts
           upcoming --days N
           summary --days N
+          sync-db
       TEXT
     end
   end
