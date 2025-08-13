@@ -8,3 +8,7 @@
 ## Iteration 2
 - Added optional Postgres sync command with schema/table bootstrap and upserts.
 - Documented database sync usage and dependency requirements in the README.
+
+## Iteration 2
+- Added Postgres sync implementation with schema/table creation, upserts, and sync event logging.
+- Wired optional database sync to use GS_CADENCE_DATABASE_URL or DATABASE_URL safely.
