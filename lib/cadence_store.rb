@@ -93,6 +93,101 @@ module GroupScholar
       }
     end
 
+    def gap_report(lookback_days, lookahead_days)
+      data = load_store
+      today = Date.today
+      entries = data["cohorts"].map do |cohort|
+        touches = data["touchpoints"].select { |touch| touch["cohort_id"] == cohort["id"] }
+        last_touch = touches.map { |touch| Date.parse(touch["date"]) }.select { |date| date <= today }.max
+        next_touch = touches.map { |touch| Date.parse(touch["date"]) }.select { |date| date >= today }.min
+        days_since_last = last_touch ? (today - last_touch).to_i : nil
+        days_until_next = next_touch ? (next_touch - today).to_i : nil
+        stale = last_touch.nil? || days_since_last > lookback_days
+        unscheduled = next_touch.nil? || days_until_next > lookahead_days
+        status = if stale && unscheduled
+          "at-risk"
+        elsif stale
+          "stale"
+        elsif unscheduled
+          "unscheduled"
+        else
+          "on-track"
+        end
+        {
+          "cohort" => cohort,
+          "last_touchpoint" => last_touch&.iso8601,
+          "next_touchpoint" => next_touch&.iso8601,
+          "days_since_last" => days_since_last,
+          "days_until_next" => days_until_next,
+          "status" => status
+        }
+      end
+
+      counts = entries.group_by { |entry| entry["status"] }.transform_values(&:size)
+      {
+        "generated_at" => DateTime.now.iso8601,
+        "lookback_days" => lookback_days,
+        "lookahead_days" => lookahead_days,
+        "counts" => counts,
+        "entries" => entries.sort_by { |entry| entry["cohort"]["start_date"] }
+      }
+    end
+
+    def cadence_status(stale_days, lookahead_days)
+      data = load_store
+      grouped = data["touchpoints"].group_by { |touch| touch["cohort_id"] }
+      today = Date.today
+      lookahead_date = today + lookahead_days
+
+      data["cohorts"].map do |cohort|
+        touches = (grouped[cohort["id"]] || []).map do |touch|
+          touch.merge("parsed_date" => Date.parse(touch["date"]))
+        end
+        past = touches.select { |touch| touch["parsed_date"] <= today }
+        future = touches.select { |touch| touch["parsed_date"] >= today }
+        last_touch = past.max_by { |touch| touch["parsed_date"] }
+        next_touch = future.min_by { |touch| touch["parsed_date"] }
+        start_date = Date.parse(cohort["start_date"])
+        end_date = Date.parse(cohort["end_date"])
+
+        status = if end_date < today
+                   "ended"
+                 elsif start_date > today
+                   "upcoming"
+                 else
+                   "active"
+                 end
+
+        days_since_last = if last_touch
+                            (today - last_touch["parsed_date"]).to_i
+                          elsif start_date <= today
+                            (today - start_date).to_i
+                          end
+
+        days_until_next = if next_touch
+                            (next_touch["parsed_date"] - today).to_i
+                          end
+
+        {
+          "cohort" => cohort,
+          "status" => status,
+          "last_touchpoint" => last_touch,
+          "next_touchpoint" => next_touch,
+          "days_since_last" => days_since_last,
+          "days_until_next" => days_until_next,
+          "next_within_lookahead" => next_touch && next_touch["parsed_date"] <= lookahead_date,
+          "stale" => status == "active" && days_since_last && days_since_last > stale_days,
+          "stale_days" => stale_days
+        }
+      end.sort_by do |entry|
+        [
+          entry["stale"] ? 0 : 1,
+          entry["status"] == "active" ? 0 : (entry["status"] == "upcoming" ? 1 : 2),
+          -(entry["days_since_last"] || -1)
+        ]
+      end
+    end
+
     private
 
     def write(data)

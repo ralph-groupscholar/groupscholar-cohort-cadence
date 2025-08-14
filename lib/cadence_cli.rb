@@ -45,6 +45,11 @@ module GroupScholar
         days = (option_value("days") || "30").to_i
         summary = @store.summary(days)
         puts render_summary(summary)
+      when "status"
+        stale_days = (option_value("stale-days") || "21").to_i
+        lookahead_days = (option_value("lookahead") || "30").to_i
+        status = @store.cadence_status(stale_days, lookahead_days)
+        puts render_status(status, stale_days, lookahead_days)
       when "sync-db"
         data = @store.load_store
         db = CadenceDB.new
@@ -104,6 +109,53 @@ module GroupScholar
       lines.join("\n")
     end
 
+    def render_status(status, stale_days, lookahead_days)
+      lines = []
+      lines << "# Cohort Cadence Status"
+      lines << "Generated: #{DateTime.now.iso8601}"
+      lines << "Stale threshold: > #{stale_days} days without touchpoint"
+      lines << "Lookahead window: #{lookahead_days} days"
+      lines << ""
+
+      if status.empty?
+        lines << "No cohorts yet."
+        return lines.join("\n")
+      end
+
+      status.each do |entry|
+        cohort = entry["cohort"]
+        last_touch = entry["last_touchpoint"]
+        next_touch = entry["next_touchpoint"]
+        lines << "## #{cohort["name"]} (#{cohort["id"]})"
+        lines << "- Status: #{entry["status"]}"
+        if entry["days_since_last"]
+          lines << "- Days since last touchpoint: #{entry["days_since_last"]}"
+        else
+          lines << "- Days since last touchpoint: n/a"
+        end
+        if last_touch
+          lines << "- Last touchpoint: #{format_touchpoint(last_touch)}"
+        else
+          lines << "- Last touchpoint: none"
+        end
+        if next_touch
+          lines << "- Next touchpoint: #{format_touchpoint(next_touch)}"
+        else
+          lines << "- Next touchpoint: none"
+        end
+        if entry["stale"]
+          lines << "- Attention: stale cadence (over #{entry["stale_days"]} days)"
+        end
+        if entry["next_within_lookahead"]
+          lines << "- Upcoming within lookahead: yes"
+        else
+          lines << "- Upcoming within lookahead: no"
+        end
+        lines << ""
+      end
+      lines.join("\n").rstrip
+    end
+
     def usage
       <<~TEXT
         Cohort Cadence CLI
@@ -115,6 +167,7 @@ module GroupScholar
           list-cohorts
           upcoming --days N
           summary --days N
+          status --stale-days N --lookahead N
           sync-db
       TEXT
     end

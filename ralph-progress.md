@@ -12,3 +12,7 @@
 ## Iteration 2
 - Added Postgres sync implementation with schema/table creation, upserts, and sync event logging.
 - Wired optional database sync to use GS_CADENCE_DATABASE_URL or DATABASE_URL safely.
+
+## Iteration 3
+- Added cadence status reporting with stale cadence detection and lookahead flags.
+- Documented the new status command in the README.
