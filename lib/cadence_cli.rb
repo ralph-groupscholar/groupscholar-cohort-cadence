@@ -50,6 +50,12 @@ module GroupScholar
         lookahead_days = (option_value("lookahead") || "30").to_i
         status = @store.cadence_status(stale_days, lookahead_days)
         puts render_status(status, stale_days, lookahead_days)
+      when "gap-report"
+        lookback = (option_value("lookback") || "30").to_i
+        lookahead = (option_value("lookahead") || "30").to_i
+        status_filter = option_value("status")
+        report = @store.gap_report(lookback, lookahead)
+        puts render_gap_report(report, status_filter)
       when "sync-db"
         data = @store.load_store
         db = CadenceDB.new
@@ -156,6 +162,40 @@ module GroupScholar
       lines.join("\n").rstrip
     end
 
+    def render_gap_report(report, status_filter)
+      lines = []
+      lines << "# Cohort Cadence Gap Report"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Lookback: #{report["lookback_days"]} days | Lookahead: #{report["lookahead_days"]} days"
+      lines << "Status filter: #{status_filter}" if status_filter
+      lines << ""
+      counts = report["counts"]
+      lines << "- At-risk cohorts: #{counts.fetch("at-risk", 0)}"
+      lines << "- Stale cohorts: #{counts.fetch("stale", 0)}"
+      lines << "- Unscheduled cohorts: #{counts.fetch("unscheduled", 0)}"
+      lines << "- On-track cohorts: #{counts.fetch("on-track", 0)}"
+      lines << ""
+      entries = report["entries"]
+      if status_filter
+        entries = entries.select { |entry| entry["status"] == status_filter }
+      end
+      if entries.empty?
+        lines << "No cohorts match the current filter."
+        return lines.join("\n").rstrip
+      end
+      entries.each do |entry|
+        cohort = entry["cohort"]
+        lines << "## #{cohort["name"]} (#{cohort["id"]})"
+        lines << "Status: #{entry["status"]}"
+        lines << "Last touchpoint: #{entry["last_touchpoint"] || "none"}"
+        lines << "Next touchpoint: #{entry["next_touchpoint"] || "none"}"
+        lines << "Days since last: #{entry["days_since_last"] || "n/a"}"
+        lines << "Days until next: #{entry["days_until_next"] || "n/a"}"
+        lines << ""
+      end
+      lines.join("\n").rstrip
+    end
+
     def usage
       <<~TEXT
         Cohort Cadence CLI
@@ -168,6 +208,7 @@ module GroupScholar
           upcoming --days N
           summary --days N
           status --stale-days N --lookahead N
+          gap-report --lookback N --lookahead N [--status at-risk|stale|unscheduled|on-track]
           sync-db
       TEXT
     end

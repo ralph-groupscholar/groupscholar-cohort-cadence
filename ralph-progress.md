@@ -9,6 +9,10 @@
 - Added optional Postgres sync command with schema/table bootstrap and upserts.
 - Documented database sync usage and dependency requirements in the README.
 
+## Iteration 3
+- Added cadence gap report logic to surface cohorts missing recent or upcoming touchpoints.
+- Extended the CLI and README with the new gap-report command and usage notes.
+
 ## Iteration 2
 - Added Postgres sync implementation with schema/table creation, upserts, and sync event logging.
 - Wired optional database sync to use GS_CADENCE_DATABASE_URL or DATABASE_URL safely.
