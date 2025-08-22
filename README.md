@@ -10,7 +10,7 @@ bin/cohort-cadence add-cohort --name "Spring Fellows" --start-date 2026-03-01 --
 bin/cohort-cadence add-touchpoint --cohort "Spring Fellows" --title "Kickoff" --date 2026-03-05 --owner "Program Lead" --channel "Zoom" --notes "Orientation + expectations"
 bin/cohort-cadence summary --days 30
 bin/cohort-cadence status --stale-days 21 --lookahead 30
-bin/cohort-cadence gap-report --lookback 30 --lookahead 30
+bin/cohort-cadence gap-report --lookback 30 --lookahead 30 --status at-risk
 ```
 
 ## Data
@@ -38,6 +38,12 @@ bin/cohort-cadence gap-report --lookback 30 --lookahead 30
 
 `--lookback` flags cohorts missing recent touchpoints. `--lookahead` flags cohorts
 that have no upcoming touchpoints scheduled.
+
+You can optionally filter by status (`at-risk`, `stale`, `unscheduled`, `on-track`):
+
+```bash
+bin/cohort-cadence gap-report --lookback 45 --lookahead 21 --status stale
+```
 
 ## Database Sync (Optional)
 

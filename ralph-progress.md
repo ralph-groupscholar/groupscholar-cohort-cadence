@@ -20,3 +20,8 @@
 ## Iteration 3
 - Added cadence status reporting with stale cadence detection and lookahead flags.
 - Documented the new status command in the README.
+
+## Iteration 17
+- Added status filtering to the cadence gap report output and CLI usage.
+- Expanded gap report rendering to handle empty filters gracefully.
+- Documented gap report status filters in the README.
