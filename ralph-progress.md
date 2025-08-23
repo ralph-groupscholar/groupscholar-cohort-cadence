@@ -25,3 +25,4 @@
 - Added status filtering to the cadence gap report output and CLI usage.
 - Expanded gap report rendering to handle empty filters gracefully.
 - Documented gap report status filters in the README.
+- Added validation for gap report status filters to prevent typos.

@@ -54,6 +54,7 @@ module GroupScholar
         lookback = (option_value("lookback") || "30").to_i
         lookahead = (option_value("lookahead") || "30").to_i
         status_filter = option_value("status")
+        validate_status_filter(status_filter)
         report = @store.gap_report(lookback, lookahead)
         puts render_gap_report(report, status_filter)
       when "sync-db"
@@ -194,6 +195,13 @@ module GroupScholar
         lines << ""
       end
       lines.join("\n").rstrip
+    end
+
+    def validate_status_filter(status_filter)
+      return if status_filter.nil?
+      allowed = %w[at-risk stale unscheduled on-track]
+      return if allowed.include?(status_filter)
+      raise "Invalid --status #{status_filter}. Use one of: #{allowed.join(", ")}"
     end
 
     def usage
