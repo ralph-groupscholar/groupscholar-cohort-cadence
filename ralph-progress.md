@@ -26,3 +26,17 @@
 - Expanded gap report rendering to handle empty filters gracefully.
 - Documented gap report status filters in the README.
 - Added validation for gap report status filters to prevent typos.
+
+## Iteration 61
+- Added owner load reporting to summarize upcoming touchpoints grouped by owner.
+- Extended CLI and README with owner-load usage and optional owner filtering.
+
+## Iteration 68
+- Added a db-summary command that reads Postgres for upcoming touchpoints and stale cohort signals.
+- Implemented database summary queries with last-sync metadata and active stale cohort detection.
+- Documented the new database summary workflow in the README.
+
+## Iteration 69
+- Added an export-ics command to generate iCalendar files for upcoming touchpoints.
+- Implemented iCalendar rendering with proper escaping and all-day event formatting.
+- Documented calendar export usage in the README.

@@ -9,8 +9,11 @@ bin/cohort-cadence init
 bin/cohort-cadence add-cohort --name "Spring Fellows" --start-date 2026-03-01 --end-date 2026-06-30 --size 24 --notes "STEM-focused cohort"
 bin/cohort-cadence add-touchpoint --cohort "Spring Fellows" --title "Kickoff" --date 2026-03-05 --owner "Program Lead" --channel "Zoom" --notes "Orientation + expectations"
 bin/cohort-cadence summary --days 30
+bin/cohort-cadence export-ics --days 90 --output data/cadence.ics
+bin/cohort-cadence owner-load --days 30
 bin/cohort-cadence status --stale-days 21 --lookahead 30
 bin/cohort-cadence gap-report --lookback 30 --lookahead 30 --status at-risk
+bin/cohort-cadence db-summary --stale-days 21 --lookahead 30
 ```
 
 ## Data
@@ -45,6 +48,28 @@ You can optionally filter by status (`at-risk`, `stale`, `unscheduled`, `on-trac
 bin/cohort-cadence gap-report --lookback 45 --lookahead 21 --status stale
 ```
 
+## Owner Load Report
+
+Summarize upcoming touchpoints grouped by owner:
+
+```bash
+bin/cohort-cadence owner-load --days 30
+```
+
+Filter to a specific owner:
+
+```bash
+bin/cohort-cadence owner-load --days 45 --owner "Program Lead"
+```
+
+## Calendar Export
+
+Export upcoming touchpoints to an iCalendar file for import into calendar tools:
+
+```bash
+bin/cohort-cadence export-ics --days 90 --output data/cadence.ics
+```
+
 ## Database Sync (Optional)
 
 To push local cadence data into the Group Scholar Postgres database, set
@@ -57,3 +82,13 @@ bin/cohort-cadence sync-db
 This will create a dedicated schema (`groupscholar_cohort_cadence`) and upsert
 cohorts/touchpoints plus a sync event log. Install the dependency with
 `gem install pg` before syncing.
+
+## Database Summary (Optional)
+
+Pull a read-only digest from Postgres with upcoming touchpoints and stale cohorts:
+
+```bash
+bin/cohort-cadence db-summary --stale-days 21 --lookahead 30
+```
+
+This uses the same database URL environment variables as `sync-db`.

@@ -45,6 +45,16 @@ module GroupScholar
         days = (option_value("days") || "30").to_i
         summary = @store.summary(days)
         puts render_summary(summary)
+      when "export-ics"
+        days = (option_value("days") || "90").to_i
+        output = option_value("output") || File.join(@root, "data", "cadence.ics")
+        result = @store.export_ics(days, output)
+        puts "Exported #{result["count"]} touchpoints to #{result["path"]} (next #{result["days"]} days)."
+      when "owner-load"
+        days = (option_value("days") || "30").to_i
+        owner_filter = option_value("owner")
+        report = @store.owner_load(days)
+        puts render_owner_load(report, owner_filter)
       when "status"
         stale_days = (option_value("stale-days") || "21").to_i
         lookahead_days = (option_value("lookahead") || "30").to_i
@@ -57,6 +67,12 @@ module GroupScholar
         validate_status_filter(status_filter)
         report = @store.gap_report(lookback, lookahead)
         puts render_gap_report(report, status_filter)
+      when "db-summary"
+        lookahead_days = (option_value("lookahead") || "30").to_i
+        stale_days = (option_value("stale-days") || "21").to_i
+        db = CadenceDB.new
+        summary = db.summary(lookahead_days, stale_days)
+        puts render_db_summary(summary, lookahead_days, stale_days)
       when "sync-db"
         data = @store.load_store
         db = CadenceDB.new
@@ -197,6 +213,75 @@ module GroupScholar
       lines.join("\n").rstrip
     end
 
+    def render_owner_load(report, owner_filter)
+      lines = []
+      lines << "# Cohort Cadence Owner Load"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Upcoming window: next #{report["days"]} days"
+      lines << "Total touchpoints: #{report["total_touchpoints"]}"
+      lines << ""
+      owners = report["owners"]
+      if owner_filter
+        owners = owners.select { |entry| entry["owner"].downcase == owner_filter.downcase }
+        lines << "Owner filter: #{owner_filter}"
+        lines << "" if owners.any?
+      end
+      if owners.empty?
+        lines << "No touchpoints in the current window."
+        return lines.join("\n").rstrip
+      end
+      owners.each do |entry|
+        lines << "## #{entry["owner"]} (#{entry["count"]})"
+        if entry["channels"].any?
+          channel_summary = entry["channels"].map { |channel, count| "#{channel}: #{count}" }.join(", ")
+          lines << "- Channels: #{channel_summary}"
+        end
+        if entry["cohorts"].any?
+          cohort_summary = entry["cohorts"].map { |cohort, count| "#{cohort}: #{count}" }.join(", ")
+          lines << "- Cohorts: #{cohort_summary}"
+        end
+        entry["touchpoints"].each do |touch|
+          lines << "- #{format_touchpoint(touch)}"
+        end
+        lines << ""
+      end
+      lines.join("\n").rstrip
+    end
+
+    def render_db_summary(summary, lookahead_days, stale_days)
+      lines = []
+      lines << "# Cohort Cadence DB Summary"
+      lines << "Generated: #{summary["generated_at"]}"
+      lines << "Lookahead: #{lookahead_days} days | Stale threshold: #{stale_days} days"
+      lines << ""
+      lines << "- Cohorts in DB: #{summary["cohort_count"]}"
+      lines << "- Touchpoints in DB: #{summary["touchpoint_count"]}"
+      if summary["last_sync"]
+        lines << "- Last sync: #{summary["last_sync"]["synced_at"]} (#{summary["last_sync"]["cohorts_count"]} cohorts, #{summary["last_sync"]["touchpoints_count"]} touchpoints)"
+      else
+        lines << "- Last sync: none"
+      end
+      lines << ""
+      if summary["upcoming"].empty?
+        lines << "No upcoming touchpoints in the next #{lookahead_days} days."
+      else
+        lines << "## Upcoming Touchpoints"
+        summary["upcoming"].each do |touch|
+          lines << "- #{touch["date"]} | #{touch["title"]} | #{touch["cohort_name"]} | #{touch["owner"]} via #{touch["channel"]}"
+        end
+      end
+      lines << ""
+      if summary["stale_cohorts"].empty?
+        lines << "No stale active cohorts."
+      else
+        lines << "## Stale Active Cohorts"
+        summary["stale_cohorts"].each do |cohort|
+          lines << "- #{cohort["name"]} (#{cohort["id"]}) | last touch: #{cohort["last_touchpoint"] || "none"} | days since: #{cohort["days_since_last"]}"
+        end
+      end
+      lines.join("\n").rstrip
+    end
+
     def validate_status_filter(status_filter)
       return if status_filter.nil?
       allowed = %w[at-risk stale unscheduled on-track]
@@ -215,8 +300,11 @@ module GroupScholar
           list-cohorts
           upcoming --days N
           summary --days N
+          export-ics --days N [--output PATH]
+          owner-load --days N [--owner NAME]
           status --stale-days N --lookahead N
           gap-report --lookback N --lookahead N [--status at-risk|stale|unscheduled|on-track]
+          db-summary --stale-days N --lookahead N
           sync-db
       TEXT
     end
