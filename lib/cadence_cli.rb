@@ -60,6 +60,13 @@ module GroupScholar
         lookahead_days = (option_value("lookahead") || "30").to_i
         status = @store.cadence_status(stale_days, lookahead_days)
         puts render_status(status, stale_days, lookahead_days)
+      when "cohort-report"
+        lookback_days = (option_value("lookback") || "30").to_i
+        lookahead_days = (option_value("lookahead") || "30").to_i
+        cohort_id = option_value("cohort")
+        raise "Missing --cohort" if cohort_id.nil? || cohort_id.strip.empty?
+        report = @store.cohort_report(cohort_id, lookback_days, lookahead_days)
+        puts render_cohort_report(report)
       when "gap-report"
         lookback = (option_value("lookback") || "30").to_i
         lookahead = (option_value("lookahead") || "30").to_i
@@ -282,6 +289,50 @@ module GroupScholar
       lines.join("\n").rstrip
     end
 
+    def render_cohort_report(report)
+      cohort = report["cohort"]
+      lines = []
+      lines << "# Cohort Cadence Report"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Cohort: #{cohort["name"]} (#{cohort["id"]})"
+      lines << "Window: lookback #{report["lookback_days"]} days | lookahead #{report["lookahead_days"]} days"
+      lines << ""
+      lines << "- Total touchpoints: #{report["touchpoint_count"]}"
+      if report["last_touchpoint"]
+        lines << "- Last touchpoint: #{format_touchpoint(report["last_touchpoint"])}"
+        lines << "- Days since last: #{report["days_since_last"]}"
+      else
+        lines << "- Last touchpoint: none"
+        lines << "- Days since last: n/a"
+      end
+      if report["next_touchpoint"]
+        lines << "- Next touchpoint: #{format_touchpoint(report["next_touchpoint"])}"
+        lines << "- Days until next: #{report["days_until_next"]}"
+      else
+        lines << "- Next touchpoint: none"
+        lines << "- Days until next: n/a"
+      end
+      lines << ""
+      if report["recent_touchpoints"].empty?
+        lines << "No touchpoints in the last #{report["lookback_days"]} days."
+      else
+        lines << "## Recent Touchpoints (last #{report["lookback_days"]} days)"
+        report["recent_touchpoints"].each do |touch|
+          lines << "- #{format_touchpoint(touch)}"
+        end
+      end
+      lines << ""
+      if report["upcoming_touchpoints"].empty?
+        lines << "No touchpoints scheduled in the next #{report["lookahead_days"]} days."
+      else
+        lines << "## Upcoming Touchpoints (next #{report["lookahead_days"]} days)"
+        report["upcoming_touchpoints"].each do |touch|
+          lines << "- #{format_touchpoint(touch)}"
+        end
+      end
+      lines.join("\n").rstrip
+    end
+
     def validate_status_filter(status_filter)
       return if status_filter.nil?
       allowed = %w[at-risk stale unscheduled on-track]
@@ -303,6 +354,7 @@ module GroupScholar
           export-ics --days N [--output PATH]
           owner-load --days N [--owner NAME]
           status --stale-days N --lookahead N
+          cohort-report --cohort COHORT_ID_OR_NAME --lookback N --lookahead N
           gap-report --lookback N --lookahead N [--status at-risk|stale|unscheduled|on-track]
           db-summary --stale-days N --lookahead N
           sync-db

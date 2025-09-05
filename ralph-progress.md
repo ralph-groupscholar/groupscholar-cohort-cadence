@@ -36,6 +36,11 @@
 - Implemented database summary queries with last-sync metadata and active stale cohort detection.
 - Documented the new database summary workflow in the README.
 
+## Iteration 62
+- Added cohort-report command to generate per-cohort touchpoint timelines.
+- Implemented cohort report aggregation with lookback/lookahead windows and last/next stats.
+- Documented the new cohort report workflow in the README.
+
 ## Iteration 69
 - Added an export-ics command to generate iCalendar files for upcoming touchpoints.
 - Implemented iCalendar rendering with proper escaping and all-day event formatting.

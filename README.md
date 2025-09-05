@@ -12,6 +12,7 @@ bin/cohort-cadence summary --days 30
 bin/cohort-cadence export-ics --days 90 --output data/cadence.ics
 bin/cohort-cadence owner-load --days 30
 bin/cohort-cadence status --stale-days 21 --lookahead 30
+bin/cohort-cadence cohort-report --cohort "Spring Fellows" --lookback 45 --lookahead 30
 bin/cohort-cadence gap-report --lookback 30 --lookahead 30 --status at-risk
 bin/cohort-cadence db-summary --stale-days 21 --lookahead 30
 ```
@@ -47,6 +48,16 @@ You can optionally filter by status (`at-risk`, `stale`, `unscheduled`, `on-trac
 ```bash
 bin/cohort-cadence gap-report --lookback 45 --lookahead 21 --status stale
 ```
+
+## Cohort Report
+
+Generate a touchpoint timeline for a specific cohort:
+
+```bash
+bin/cohort-cadence cohort-report --cohort "Spring Fellows" --lookback 45 --lookahead 30
+```
+
+`--lookback` controls how far back the recent list runs. `--lookahead` controls the upcoming window.
 
 ## Owner Load Report
 
