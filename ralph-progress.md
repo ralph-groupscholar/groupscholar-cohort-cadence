@@ -45,3 +45,8 @@
 - Added an export-ics command to generate iCalendar files for upcoming touchpoints.
 - Implemented iCalendar rendering with proper escaping and all-day event formatting.
 - Documented calendar export usage in the README.
+
+## Iteration 102
+- Added a weekly-agenda command to group upcoming touchpoints by week with optional owner/cohort filters.
+- Implemented weekly agenda aggregation in the store with week windows and filter handling.
+- Documented weekly agenda usage in the README.

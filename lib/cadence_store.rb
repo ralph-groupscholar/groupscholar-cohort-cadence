@@ -263,6 +263,105 @@ module GroupScholar
       }
     end
 
+    def cadence_metrics(max_gap_days)
+      data = load_store
+      today = Date.today
+
+      entries = data["cohorts"].map do |cohort|
+        touches = data["touchpoints"].select { |touch| touch["cohort_id"] == cohort["id"] }.map do |touch|
+          touch.merge("parsed_date" => Date.parse(touch["date"]))
+        end.sort_by { |touch| touch["parsed_date"] }
+
+        gaps = []
+        touches.each_cons(2) do |first_touch, second_touch|
+          gaps << (second_touch["parsed_date"] - first_touch["parsed_date"]).to_i
+        end
+
+        last_touch = touches.select { |touch| touch["parsed_date"] <= today }.max_by { |touch| touch["parsed_date"] }
+        next_touch = touches.select { |touch| touch["parsed_date"] >= today }.min_by { |touch| touch["parsed_date"] }
+
+        avg_gap = gaps.any? ? (gaps.sum.to_f / gaps.size).round(1) : nil
+        max_gap = gaps.max
+        min_gap = gaps.min
+
+        {
+          "cohort" => cohort,
+          "touchpoint_count" => touches.size,
+          "avg_gap_days" => avg_gap,
+          "min_gap_days" => min_gap,
+          "max_gap_days" => max_gap,
+          "last_touchpoint" => strip_parsed(last_touch),
+          "next_touchpoint" => strip_parsed(next_touch),
+          "days_since_last" => last_touch ? (today - last_touch["parsed_date"]).to_i : nil,
+          "days_until_next" => next_touch ? (next_touch["parsed_date"] - today).to_i : nil,
+          "gap_flag" => max_gap_days && max_gap ? max_gap > max_gap_days : false
+        }
+      end
+
+      flagged = entries.count { |entry| entry["gap_flag"] }
+
+      {
+        "generated_at" => DateTime.now.iso8601,
+        "max_gap_days" => max_gap_days,
+        "cohort_count" => entries.size,
+        "flagged_count" => flagged,
+        "entries" => entries.sort_by do |entry|
+          [
+            entry["gap_flag"] ? 0 : 1,
+            -(entry["max_gap_days"] || -1),
+            entry["cohort"]["start_date"]
+          ]
+        end
+      }
+    end
+
+    def weekly_agenda(weeks, owner_filter = nil, cohort_filter = nil)
+      data = load_store
+      today = Date.today
+      end_date = today + (weeks * 7) - 1
+      touches = data["touchpoints"].select do |touch|
+        date = Date.parse(touch["date"])
+        date >= today && date <= end_date
+      end
+
+      if owner_filter && !owner_filter.strip.empty?
+        touches = touches.select do |touch|
+          touch["owner"].to_s.strip.casecmp(owner_filter.strip).zero?
+        end
+      end
+
+      if cohort_filter && !cohort_filter.strip.empty?
+        touches = touches.select do |touch|
+          touch["cohort_id"] == cohort_filter ||
+            touch["cohort_name"].to_s.strip.casecmp(cohort_filter.strip).zero?
+        end
+      end
+
+      grouped = touches.group_by do |touch|
+        date = Date.parse(touch["date"])
+        date - (date.cwday - 1)
+      end
+
+      weeks_list = grouped.map do |week_start, items|
+        {
+          "week_start" => week_start.iso8601,
+          "week_end" => (week_start + 6).iso8601,
+          "touchpoints" => items.sort_by { |touch| touch["date"] }
+        }
+      end.sort_by { |entry| entry["week_start"] }
+
+      {
+        "generated_at" => DateTime.now.iso8601,
+        "weeks" => weeks,
+        "window_start" => today.iso8601,
+        "window_end" => end_date.iso8601,
+        "total_touchpoints" => touches.size,
+        "owner_filter" => owner_filter,
+        "cohort_filter" => cohort_filter,
+        "weeks_list" => weeks_list
+      }
+    end
+
     private
 
     def build_ics(touchpoints)

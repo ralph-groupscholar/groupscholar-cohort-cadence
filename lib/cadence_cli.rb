@@ -74,6 +74,12 @@ module GroupScholar
         validate_status_filter(status_filter)
         report = @store.gap_report(lookback, lookahead)
         puts render_gap_report(report, status_filter)
+      when "weekly-agenda"
+        weeks = (option_value("weeks") || "8").to_i
+        owner_filter = option_value("owner")
+        cohort_filter = option_value("cohort")
+        report = @store.weekly_agenda(weeks, owner_filter, cohort_filter)
+        puts render_weekly_agenda(report)
       when "db-summary"
         lookahead_days = (option_value("lookahead") || "30").to_i
         stale_days = (option_value("stale-days") || "21").to_i
@@ -289,6 +295,37 @@ module GroupScholar
       lines.join("\n").rstrip
     end
 
+    def render_weekly_agenda(report)
+      lines = []
+      lines << "# Cohort Cadence Weekly Agenda"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Window: #{report["window_start"]} → #{report["window_end"]} (#{report["weeks"]} weeks)"
+      lines << "Total touchpoints: #{report["total_touchpoints"]}"
+      if report["owner_filter"] && !report["owner_filter"].strip.empty?
+        lines << "Owner filter: #{report["owner_filter"]}"
+      end
+      if report["cohort_filter"] && !report["cohort_filter"].strip.empty?
+        lines << "Cohort filter: #{report["cohort_filter"]}"
+      end
+      lines << ""
+
+      weeks_list = report["weeks_list"]
+      if weeks_list.empty?
+        lines << "No touchpoints scheduled in the current window."
+        return lines.join("\n").rstrip
+      end
+
+      weeks_list.each do |week|
+        lines << "## Week of #{week["week_start"]} (#{week["week_start"]} → #{week["week_end"]})"
+        week["touchpoints"].each do |touch|
+          lines << "- #{format_touchpoint(touch)}"
+        end
+        lines << ""
+      end
+
+      lines.join("\n").rstrip
+    end
+
     def render_cohort_report(report)
       cohort = report["cohort"]
       lines = []
@@ -356,6 +393,7 @@ module GroupScholar
           status --stale-days N --lookahead N
           cohort-report --cohort COHORT_ID_OR_NAME --lookback N --lookahead N
           gap-report --lookback N --lookahead N [--status at-risk|stale|unscheduled|on-track]
+          weekly-agenda --weeks N [--owner NAME] [--cohort COHORT_ID_OR_NAME]
           db-summary --stale-days N --lookahead N
           sync-db
       TEXT

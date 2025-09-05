@@ -14,6 +14,7 @@ bin/cohort-cadence owner-load --days 30
 bin/cohort-cadence status --stale-days 21 --lookahead 30
 bin/cohort-cadence cohort-report --cohort "Spring Fellows" --lookback 45 --lookahead 30
 bin/cohort-cadence gap-report --lookback 30 --lookahead 30 --status at-risk
+bin/cohort-cadence weekly-agenda --weeks 8
 bin/cohort-cadence db-summary --stale-days 21 --lookahead 30
 ```
 
@@ -79,6 +80,21 @@ Export upcoming touchpoints to an iCalendar file for import into calendar tools:
 
 ```bash
 bin/cohort-cadence export-ics --days 90 --output data/cadence.ics
+```
+
+## Weekly Agenda
+
+Generate a week-by-week agenda of upcoming touchpoints:
+
+```bash
+bin/cohort-cadence weekly-agenda --weeks 8
+```
+
+Filter to a specific owner or cohort:
+
+```bash
+bin/cohort-cadence weekly-agenda --weeks 6 --owner "Program Lead"
+bin/cohort-cadence weekly-agenda --weeks 6 --cohort "Spring Fellows"
 ```
 
 ## Database Sync (Optional)
