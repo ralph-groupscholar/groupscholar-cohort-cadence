@@ -55,6 +55,19 @@ module GroupScholar
         owner_filter = option_value("owner")
         report = @store.owner_load(days)
         puts render_owner_load(report, owner_filter)
+      when "owner-balance"
+        days = (option_value("days") || "30").to_i
+        threshold_value = option_value("threshold")
+        threshold = threshold_value ? threshold_value.to_f : 0.25
+        report = @store.owner_balance(days, threshold)
+        puts render_owner_balance(report)
+      when "channel-report"
+        lookback_days = (option_value("lookback") || "30").to_i
+        lookahead_days = (option_value("lookahead") || "30").to_i
+        owner_filter = option_value("owner")
+        cohort_filter = option_value("cohort")
+        report = @store.channel_report(lookback_days, lookahead_days, owner_filter, cohort_filter)
+        puts render_channel_report(report)
       when "status"
         stale_days = (option_value("stale-days") || "21").to_i
         lookahead_days = (option_value("lookahead") || "30").to_i
@@ -74,12 +87,41 @@ module GroupScholar
         validate_status_filter(status_filter)
         report = @store.gap_report(lookback, lookahead)
         puts render_gap_report(report, status_filter)
+      when "cadence-metrics"
+        max_gap_value = option_value("max-gap")
+        max_gap_days = max_gap_value ? max_gap_value.to_i : nil
+        report = @store.cadence_metrics(max_gap_days)
+        puts render_cadence_metrics(report)
       when "weekly-agenda"
         weeks = (option_value("weeks") || "8").to_i
         owner_filter = option_value("owner")
         cohort_filter = option_value("cohort")
         report = @store.weekly_agenda(weeks, owner_filter, cohort_filter)
         puts render_weekly_agenda(report)
+      when "coverage-report"
+        weeks = (option_value("weeks") || "8").to_i
+        cohort_filter = option_value("cohort")
+        report = @store.cohort_coverage(weeks, cohort_filter)
+        puts render_cohort_coverage(report)
+      when "owner-capacity"
+        weeks = (option_value("weeks") || "8").to_i
+        limit_value = option_value("limit")
+        weekly_limit = limit_value ? limit_value.to_i : nil
+        owner_filter = option_value("owner")
+        report = @store.owner_capacity(weeks, weekly_limit, owner_filter)
+        puts render_owner_capacity(report)
+      when "owner-conflicts"
+        days = (option_value("days") || "30").to_i
+        limit_value = option_value("limit")
+        daily_limit = limit_value ? limit_value.to_i : 2
+        owner_filter = option_value("owner")
+        report = @store.owner_conflicts(days, daily_limit, owner_filter)
+        puts render_owner_conflicts(report)
+      when "action-plan"
+        target_gap_days = (option_value("target-gap") || "21").to_i
+        lookahead_days = (option_value("lookahead") || "30").to_i
+        report = @store.action_plan(target_gap_days, lookahead_days)
+        puts render_action_plan(report)
       when "db-summary"
         lookahead_days = (option_value("lookahead") || "30").to_i
         stale_days = (option_value("stale-days") || "21").to_i
@@ -91,6 +133,10 @@ module GroupScholar
         db = CadenceDB.new
         db.sync!(data)
         puts "Synced #{data["cohorts"].size} cohorts and #{data["touchpoints"].size} touchpoints to Postgres."
+      when "seed-db"
+        db = CadenceDB.new
+        result = db.seed!
+        puts "Seeded Postgres with #{result["cohorts"]} cohorts and #{result["touchpoints"]} touchpoints."
       else
         puts usage
       end
@@ -141,6 +187,33 @@ module GroupScholar
         summary["upcoming"].each do |touch|
           lines << "- #{format_touchpoint(touch)}"
         end
+      end
+      lines.join("\n")
+    end
+
+    def render_owner_balance(report)
+      lines = []
+      lines << "# Owner Balance"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Window: next #{report["days"]} days"
+      lines << "Imbalance threshold: #{(report["threshold"] * 100).round(0)}%"
+      lines << ""
+      lines << "- Total touchpoints: #{report["total_touchpoints"]}"
+      lines << "- Owners tracked: #{report["owners_count"]}"
+      lines << "- Average per owner: #{report["avg_per_owner"] || "n/a"}"
+      lines << "- Status counts: #{render_rollup(report["status_counts"])}"
+      lines << ""
+
+      if report["owners"].empty?
+        lines << "No touchpoints in the next #{report["days"]} days."
+        return lines.join("\n")
+      end
+
+      lines << "## Owner Workload"
+      report["owners"].each do |owner|
+        share = (owner["share"] * 100).round(1)
+        delta = owner["delta_from_avg"] ? format("%+.2f", owner["delta_from_avg"]) : "n/a"
+        lines << "- #{owner["owner"]}: #{owner["count"]} touchpoints (#{share}% share, Δ #{delta}) [#{owner["status"]}]"
       end
       lines.join("\n")
     end
@@ -261,6 +334,51 @@ module GroupScholar
       lines.join("\n").rstrip
     end
 
+    def render_channel_report(report)
+      lines = []
+      lines << "# Channel Touchpoint Report"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Window: #{report["window_start"]} → #{report["window_end"]} (lookback #{report["lookback_days"]} days, lookahead #{report["lookahead_days"]} days)"
+      lines << "Total touchpoints: #{report["total_touchpoints"]}"
+      if report["owner_filter"] && !report["owner_filter"].strip.empty?
+        lines << "Owner filter: #{report["owner_filter"]}"
+      end
+      if report["cohort_filter"] && !report["cohort_filter"].strip.empty?
+        lines << "Cohort filter: #{report["cohort_filter"]}"
+      end
+      lines << ""
+
+      channels = report["channels"]
+      if channels.empty?
+        lines << "No touchpoints in the selected window."
+        return lines.join("\n").rstrip
+      end
+
+      channels.each do |channel|
+        lines << "## #{channel["channel"]} (#{channel["count"]})"
+        lines << "- Past touchpoints: #{channel["past_count"]}"
+        lines << "- Upcoming touchpoints: #{channel["upcoming_count"]}"
+        if channel["last_touchpoint"]
+          lines << "- Last touchpoint: #{format_touchpoint(channel["last_touchpoint"])}"
+        else
+          lines << "- Last touchpoint: none"
+        end
+        if channel["next_touchpoint"]
+          lines << "- Next touchpoint: #{format_touchpoint(channel["next_touchpoint"])}"
+        else
+          lines << "- Next touchpoint: none"
+        end
+        lines << "- Owners: #{render_rollup(channel["owners"])}"
+        lines << "- Cohorts: #{render_rollup(channel["cohorts"])}"
+        channel["touchpoints"].each do |touch|
+          lines << "- #{format_touchpoint(touch)}"
+        end
+        lines << ""
+      end
+
+      lines.join("\n").rstrip
+    end
+
     def render_db_summary(summary, lookahead_days, stale_days)
       lines = []
       lines << "# Cohort Cadence DB Summary"
@@ -295,6 +413,52 @@ module GroupScholar
       lines.join("\n").rstrip
     end
 
+    def render_cadence_metrics(report)
+      lines = []
+      lines << "# Cohort Cadence Metrics"
+      lines << "Generated: #{report["generated_at"]}"
+      if report["max_gap_days"]
+        lines << "Gap flag threshold: > #{report["max_gap_days"]} days"
+      else
+        lines << "Gap flag threshold: none"
+      end
+      lines << ""
+      lines << "- Cohorts tracked: #{report["cohort_count"]}"
+      lines << "- Flagged cohorts: #{report["flagged_count"]}"
+      lines << ""
+
+      if report["entries"].empty?
+        lines << "No cohorts yet."
+        return lines.join("\n").rstrip
+      end
+
+      report["entries"].each do |entry|
+        cohort = entry["cohort"]
+        lines << "## #{cohort["name"]} (#{cohort["id"]})"
+        lines << "- Touchpoints: #{entry["touchpoint_count"]}"
+        lines << "- Avg gap: #{entry["avg_gap_days"] || "n/a"} days"
+        lines << "- Min gap: #{entry["min_gap_days"] || "n/a"} days"
+        lines << "- Max gap: #{entry["max_gap_days"] || "n/a"} days"
+        lines << "- Flagged: #{entry["gap_flag"] ? "yes" : "no"}"
+        if entry["last_touchpoint"]
+          lines << "- Last touchpoint: #{format_touchpoint(entry["last_touchpoint"])}"
+          lines << "- Days since last: #{entry["days_since_last"]}"
+        else
+          lines << "- Last touchpoint: none"
+          lines << "- Days since last: n/a"
+        end
+        if entry["next_touchpoint"]
+          lines << "- Next touchpoint: #{format_touchpoint(entry["next_touchpoint"])}"
+          lines << "- Days until next: #{entry["days_until_next"]}"
+        else
+          lines << "- Next touchpoint: none"
+          lines << "- Days until next: n/a"
+        end
+        lines << ""
+      end
+      lines.join("\n").rstrip
+    end
+
     def render_weekly_agenda(report)
       lines = []
       lines << "# Cohort Cadence Weekly Agenda"
@@ -320,6 +484,166 @@ module GroupScholar
         week["touchpoints"].each do |touch|
           lines << "- #{format_touchpoint(touch)}"
         end
+        lines << ""
+      end
+
+      lines.join("\n").rstrip
+    end
+
+    def render_cohort_coverage(report)
+      lines = []
+      lines << "# Cohort Coverage Report"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Window: #{report["window_start"]} → #{report["window_end"]} (#{report["weeks"]} weeks)"
+      lines << "- Cohorts tracked: #{report["cohort_count"]}"
+      lines << "- Weeks tracked: #{report["weeks_tracked"]}"
+      lines << ""
+
+      if report["entries"].empty?
+        lines << "No cohorts found for this window."
+        return lines.join("\n").rstrip
+      end
+
+      report["entries"].each do |entry|
+        cohort = entry["cohort"]
+        coverage_pct = (entry["coverage_rate"] * 100).round(1)
+        lines << "## #{cohort["name"]} (#{cohort["id"]})"
+        lines << "- Touchpoints in window: #{entry["total_touchpoints"]}"
+        lines << "- Coverage: #{coverage_pct}% (#{entry["weeks_with_touchpoints"]}/#{entry["weeks_tracked"]} weeks)"
+        lines << "- Longest gap: #{entry["longest_gap_weeks"]} weeks"
+        if entry["empty_weeks"].empty?
+          lines << "- Empty weeks: none"
+        else
+          empty_ranges = entry["empty_weeks"].map do |week|
+            "#{week["week_start"]}→#{week["week_end"]}"
+          end
+          lines << "- Empty weeks: #{empty_ranges.join(", ")}"
+        end
+        lines << "### Weekly Counts"
+        entry["weeks"].each do |week|
+          label = "#{week["week_start"]}→#{week["week_end"]}"
+          lines << "- #{label}: #{week["count"]} touchpoints"
+        end
+        lines << ""
+      end
+
+      lines.join("\n").rstrip
+    end
+
+    def render_owner_capacity(report)
+      lines = []
+      lines << "# Cohort Cadence Owner Capacity"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Window: #{report["window_start"]} → #{report["window_end"]} (#{report["weeks"]} weeks)"
+      if report["weekly_limit"]
+        lines << "Weekly limit: #{report["weekly_limit"]} touchpoints per owner"
+      else
+        lines << "Weekly limit: none"
+      end
+      lines << "Total touchpoints: #{report["total_touchpoints"]}"
+      lines << "Owners tracked: #{report["owners_count"]}"
+      lines << "Over-limit weeks: #{report["over_limit_weeks"]}"
+      if report["owner_filter"] && !report["owner_filter"].strip.empty?
+        lines << "Owner filter: #{report["owner_filter"]}"
+      end
+      lines << ""
+
+      owners = report["owners"]
+      if owners.empty?
+        lines << "No touchpoints scheduled in the current window."
+        return lines.join("\n").rstrip
+      end
+
+      owners.each do |owner|
+        lines << "## #{owner["owner"]} (#{owner["total_touchpoints"]})"
+        lines << "- Weeks tracked: #{owner["weeks_tracked"]}"
+        lines << "- Over-limit weeks: #{owner["over_limit_weeks"]}"
+        owner["weeks"].each do |week|
+          label = "Week of #{week["week_start"]} (#{week["week_start"]} → #{week["week_end"]})"
+          status = week["over_limit"] ? "OVER LIMIT" : "ok"
+          lines << "- #{label}: #{week["count"]} touchpoints (#{status})"
+          week["touchpoints"].each do |touch|
+            lines << "  - #{format_touchpoint(touch)}"
+          end
+        end
+        lines << ""
+      end
+
+      lines.join("\n").rstrip
+    end
+
+    def render_owner_conflicts(report)
+      lines = []
+      lines << "# Cohort Cadence Owner Conflicts"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Window: #{report["window_start"]} → #{report["window_end"]} (#{report["days"]} days)"
+      lines << "Daily limit: #{report["daily_limit"]} touchpoints per owner"
+      lines << "Total touchpoints: #{report["total_touchpoints"]}"
+      lines << "Owners with conflicts: #{report["owners_count"]}"
+      lines << "Conflict days: #{report["conflict_days"]}"
+      if report["owner_filter"] && !report["owner_filter"].strip.empty?
+        lines << "Owner filter: #{report["owner_filter"]}"
+      end
+      lines << ""
+
+      owners = report["owners"]
+      if owners.empty?
+        lines << "No owner conflicts in the current window."
+        return lines.join("\n").rstrip
+      end
+
+      owners.each do |owner|
+        lines << "## #{owner["owner"]} (#{owner["conflict_days"]} conflict days)"
+        owner["days"].each do |day|
+          lines << "- #{day["date"]}: #{day["count"]} touchpoints"
+          day["touchpoints"].each do |touch|
+            lines << "  - #{format_touchpoint(touch)}"
+          end
+        end
+        lines << ""
+      end
+
+      lines.join("\n").rstrip
+    end
+
+    def render_action_plan(report)
+      lines = []
+      lines << "# Cohort Cadence Action Plan"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Target gap: #{report["target_gap_days"]} days | Lookahead: #{report["lookahead_days"]} days"
+      lines << ""
+      lines << "- Cohorts tracked: #{report["cohort_count"]}"
+      lines << "- Action needed: #{report["action_count"]}"
+      lines << ""
+
+      entries = report["entries"]
+      if entries.empty?
+        lines << "No cohorts need new touchpoints in the current window."
+        return lines.join("\n").rstrip
+      end
+
+      entries.each do |entry|
+        cohort = entry["cohort"]
+        lines << "## #{cohort["name"]} (#{cohort["id"]})"
+        lines << "- Status: #{entry["status"]}"
+        if entry["last_touchpoint"]
+          lines << "- Last touchpoint: #{format_touchpoint(entry["last_touchpoint"])}"
+          lines << "- Days since last: #{entry["days_since_last"]}"
+        else
+          lines << "- Last touchpoint: none"
+          lines << "- Days since last: n/a"
+        end
+        if entry["next_touchpoint"]
+          lines << "- Next touchpoint: #{format_touchpoint(entry["next_touchpoint"])}"
+          lines << "- Days until next: #{entry["days_until_next"]}"
+        else
+          lines << "- Next touchpoint: none"
+          lines << "- Days until next: n/a"
+        end
+        lines << "- Recommended date: #{entry["recommended_date"] || "n/a"}"
+        lines << "- Recommended owner: #{entry["recommended_owner"]}"
+        lines << "- Reason: #{entry["reason"]}"
+        lines << "- Within lookahead: #{entry["within_lookahead"] ? "yes" : "no"}"
         lines << ""
       end
 
@@ -370,6 +694,13 @@ module GroupScholar
       lines.join("\n").rstrip
     end
 
+    def render_rollup(counts)
+      return "none" if counts.nil? || counts.empty?
+      counts.sort_by { |key, value| [-value, key.to_s] }
+            .map { |key, value| "#{key} (#{value})" }
+            .join(", ")
+    end
+
     def validate_status_filter(status_filter)
       return if status_filter.nil?
       allowed = %w[at-risk stale unscheduled on-track]
@@ -390,12 +721,20 @@ module GroupScholar
           summary --days N
           export-ics --days N [--output PATH]
           owner-load --days N [--owner NAME]
+          owner-balance --days N [--threshold FLOAT]
+          channel-report --lookback N --lookahead N [--owner NAME] [--cohort COHORT_ID_OR_NAME]
           status --stale-days N --lookahead N
           cohort-report --cohort COHORT_ID_OR_NAME --lookback N --lookahead N
           gap-report --lookback N --lookahead N [--status at-risk|stale|unscheduled|on-track]
           weekly-agenda --weeks N [--owner NAME] [--cohort COHORT_ID_OR_NAME]
+          coverage-report --weeks N [--cohort COHORT_ID_OR_NAME]
+          owner-capacity --weeks N [--limit N] [--owner NAME]
+          owner-conflicts --days N [--limit N] [--owner NAME]
+          action-plan --target-gap N --lookahead N
+          cadence-metrics [--max-gap N]
           db-summary --stale-days N --lookahead N
           sync-db
+          seed-db
       TEXT
     end
   end

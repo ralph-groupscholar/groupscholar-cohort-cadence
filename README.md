@@ -11,11 +11,19 @@ bin/cohort-cadence add-touchpoint --cohort "Spring Fellows" --title "Kickoff" --
 bin/cohort-cadence summary --days 30
 bin/cohort-cadence export-ics --days 90 --output data/cadence.ics
 bin/cohort-cadence owner-load --days 30
+bin/cohort-cadence owner-balance --days 30 --threshold 0.25
+bin/cohort-cadence channel-report --lookback 30 --lookahead 30
 bin/cohort-cadence status --stale-days 21 --lookahead 30
 bin/cohort-cadence cohort-report --cohort "Spring Fellows" --lookback 45 --lookahead 30
 bin/cohort-cadence gap-report --lookback 30 --lookahead 30 --status at-risk
 bin/cohort-cadence weekly-agenda --weeks 8
+bin/cohort-cadence coverage-report --weeks 8
+bin/cohort-cadence owner-capacity --weeks 8 --limit 4
+bin/cohort-cadence owner-conflicts --days 30 --limit 2
+bin/cohort-cadence cadence-metrics --max-gap 21
+bin/cohort-cadence action-plan --target-gap 21 --lookahead 30
 bin/cohort-cadence db-summary --stale-days 21 --lookahead 30
+bin/cohort-cadence seed-db
 ```
 
 ## Data
@@ -60,6 +68,16 @@ bin/cohort-cadence cohort-report --cohort "Spring Fellows" --lookback 45 --looka
 
 `--lookback` controls how far back the recent list runs. `--lookahead` controls the upcoming window.
 
+## Cadence Metrics
+
+Summarize average and maximum gaps between touchpoints per cohort:
+
+```bash
+bin/cohort-cadence cadence-metrics --max-gap 30
+```
+
+Use `--max-gap` to flag cohorts with gaps larger than the threshold. Omit the flag to run the report without highlighting.
+
 ## Owner Load Report
 
 Summarize upcoming touchpoints grouped by owner:
@@ -72,6 +90,32 @@ Filter to a specific owner:
 
 ```bash
 bin/cohort-cadence owner-load --days 45 --owner "Program Lead"
+```
+
+## Owner Balance
+
+Quantify workload balance across owners in the upcoming window:
+
+```bash
+bin/cohort-cadence owner-balance --days 30 --threshold 0.25
+```
+
+`--threshold` sets the relative imbalance tolerance (25% default). Owners beyond the
+threshold are flagged as `overloaded` or `underloaded`.
+
+## Channel Report
+
+Review touchpoints grouped by channel within a combined lookback/lookahead window:
+
+```bash
+bin/cohort-cadence channel-report --lookback 30 --lookahead 30
+```
+
+Filter by owner or cohort:
+
+```bash
+bin/cohort-cadence channel-report --lookback 45 --lookahead 21 --owner "Program Lead"
+bin/cohort-cadence channel-report --lookback 45 --lookahead 21 --cohort "Spring Fellows"
 ```
 
 ## Calendar Export
@@ -97,6 +141,59 @@ bin/cohort-cadence weekly-agenda --weeks 6 --owner "Program Lead"
 bin/cohort-cadence weekly-agenda --weeks 6 --cohort "Spring Fellows"
 ```
 
+## Coverage Report
+
+Review weekly coverage for each cohort to spot empty weeks in the upcoming window:
+
+```bash
+bin/cohort-cadence coverage-report --weeks 8
+```
+
+Filter to a specific cohort:
+
+```bash
+bin/cohort-cadence coverage-report --weeks 6 --cohort "Spring Fellows"
+```
+
+## Owner Capacity
+
+Review weekly touchpoint load by owner and flag overloaded weeks:
+
+```bash
+bin/cohort-cadence owner-capacity --weeks 8 --limit 4
+```
+
+Filter to a single owner:
+
+```bash
+bin/cohort-cadence owner-capacity --weeks 6 --limit 3 --owner "Program Lead"
+```
+
+## Owner Conflicts
+
+Identify dates where an owner has too many touchpoints scheduled:
+
+```bash
+bin/cohort-cadence owner-conflicts --days 30 --limit 2
+```
+
+Filter to a single owner:
+
+```bash
+bin/cohort-cadence owner-conflicts --days 45 --limit 2 --owner "Program Lead"
+```
+
+## Action Plan
+
+Generate a recommended next-touchpoint plan for cohorts that need cadence attention:
+
+```bash
+bin/cohort-cadence action-plan --target-gap 21 --lookahead 30
+```
+
+`--target-gap` sets the desired maximum gap between touchpoints. `--lookahead`
+controls the window used to flag whether the recommended next touchpoint is soon.
+
 ## Database Sync (Optional)
 
 To push local cadence data into the Group Scholar Postgres database, set
@@ -116,6 +213,27 @@ Pull a read-only digest from Postgres with upcoming touchpoints and stale cohort
 
 ```bash
 bin/cohort-cadence db-summary --stale-days 21 --lookahead 30
+```
+
+This uses the same database URL environment variables as `sync-db`.
+
+## Database Seed (Optional)
+
+Seed the production database with realistic sample cohorts and touchpoints:
+
+```bash
+bin/cohort-cadence seed-db
+```
+
+## Testing
+
+Run the CLI store tests:
+
+```bash
+ruby -I lib test/test_owner_capacity.rb
+ruby -I lib test/test_owner_conflicts.rb
+ruby -I lib test/test_channel_report.rb
+ruby -I lib test/test_cohort_coverage.rb
 ```
 
 This uses the same database URL environment variables as `sync-db`.
