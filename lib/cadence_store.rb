@@ -648,6 +648,12 @@ module GroupScholar
       data = load_store
       today = Date.today
       end_date = today + (weeks * 7) - 1
+      week_start = today - (today.cwday - 1)
+      week_starts = []
+      while week_start <= end_date
+        week_starts << week_start
+        week_start += 7
+      end
       touches = data["touchpoints"].select do |touch|
         date = Date.parse(touch["date"])
         date >= today && date <= end_date
@@ -665,21 +671,21 @@ module GroupScholar
       end
 
       owners = grouped.map do |owner, items|
-        week_groups = items.group_by do |touch|
-          date = Date.parse(touch["date"])
-          date - (date.cwday - 1)
-        end
-
-        weeks_list = week_groups.map do |week_start, week_items|
+        weeks_list = week_starts.map do |week_cursor|
+          week_end = week_cursor + 6
+          week_items = items.select do |touch|
+            date = Date.parse(touch["date"])
+            date >= week_cursor && date <= week_end
+          end
           count = week_items.size
           {
-            "week_start" => week_start.iso8601,
-            "week_end" => (week_start + 6).iso8601,
+            "week_start" => week_cursor.iso8601,
+            "week_end" => week_end.iso8601,
             "count" => count,
             "over_limit" => weekly_limit ? count > weekly_limit : false,
             "touchpoints" => week_items.sort_by { |touch| touch["date"] }
           }
-        end.sort_by { |entry| entry["week_start"] }
+        end
 
         over_limit_weeks = weeks_list.count { |entry| entry["over_limit"] }
 

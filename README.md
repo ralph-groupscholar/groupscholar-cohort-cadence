@@ -163,6 +163,8 @@ Review weekly touchpoint load by owner and flag overloaded weeks:
 bin/cohort-cadence owner-capacity --weeks 8 --limit 4
 ```
 
+The report includes zero-count weeks so you can spot upcoming gaps in owner schedules.
+
 Filter to a single owner:
 
 ```bash

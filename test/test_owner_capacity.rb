@@ -37,10 +37,15 @@ class OwnerCapacityTest < Minitest::Test
         owner_a = report["owners"].find { |entry| entry["owner"] == "Owner A" }
         assert_equal 3, owner_a["total_touchpoints"]
         assert_equal 1, owner_a["over_limit_weeks"]
+        assert_equal 3, owner_a["weeks_tracked"]
 
         week = owner_a["weeks"].find { |entry| entry["week_start"] == "2026-02-02" }
         assert_equal true, week["over_limit"]
         assert_equal 3, week["count"]
+
+        empty_week = owner_a["weeks"].find { |entry| entry["week_start"] == "2026-02-09" }
+        assert_equal false, empty_week["over_limit"]
+        assert_equal 0, empty_week["count"]
       end
     end
   end

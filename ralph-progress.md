@@ -85,3 +85,7 @@
 - Added cohort coverage reporting to flag empty upcoming weeks and coverage rates.
 - Implemented coverage-report CLI command and rendering with weekly counts.
 - Added coverage report tests and documented the workflow in the README.
+
+## Iteration 104
+- Expanded owner capacity reporting to include zero-count weeks within the window.
+- Adjusted owner capacity tests and docs to reflect the fuller weekly coverage view.
