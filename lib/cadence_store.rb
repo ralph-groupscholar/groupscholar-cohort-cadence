@@ -257,6 +257,68 @@ module GroupScholar
       }
     end
 
+    def weekday_report(lookback_days, lookahead_days, owner_filter = nil, cohort_filter = nil)
+      data = load_store
+      today = Date.today
+      start_date = today - lookback_days
+      end_date = today + lookahead_days
+      windowed = data["touchpoints"].select do |touch|
+        date = Date.parse(touch["date"])
+        date >= start_date && date <= end_date
+      end
+
+      if owner_filter && !owner_filter.strip.empty?
+        windowed = windowed.select do |touch|
+          touch["owner"].to_s.strip.casecmp(owner_filter.strip).zero?
+        end
+      end
+
+      if cohort_filter && !cohort_filter.strip.empty?
+        windowed = windowed.select do |touch|
+          touch["cohort_id"] == cohort_filter ||
+            touch["cohort_name"].to_s.strip.casecmp(cohort_filter.strip).zero?
+        end
+      end
+
+      weekday_names = %w[Monday Tuesday Wednesday Thursday Friday Saturday Sunday]
+      grouped = windowed.group_by do |touch|
+        Date.parse(touch["date"]).strftime("%A")
+      end
+
+      weekdays = weekday_names.map do |weekday|
+        touches = grouped.fetch(weekday, [])
+        parsed = touches.map { |touch| touch.merge("parsed_date" => Date.parse(touch["date"])) }
+        past = parsed.select { |touch| touch["parsed_date"] < today }
+        upcoming = parsed.select { |touch| touch["parsed_date"] >= today }
+        owner_counts = touches.group_by do |touch|
+          owner = touch["owner"].to_s.strip
+          owner.empty? ? "Unassigned" : owner
+        end.transform_values(&:size)
+        cohort_counts = touches.group_by { |touch| touch["cohort_name"] }.transform_values(&:size)
+        {
+          "weekday" => weekday,
+          "count" => touches.size,
+          "past_count" => past.size,
+          "upcoming_count" => upcoming.size,
+          "owners" => owner_counts,
+          "cohorts" => cohort_counts,
+          "touchpoints" => touches.sort_by { |touch| touch["date"] }
+        }
+      end
+
+      {
+        "generated_at" => DateTime.now.iso8601,
+        "lookback_days" => lookback_days,
+        "lookahead_days" => lookahead_days,
+        "window_start" => start_date.iso8601,
+        "window_end" => end_date.iso8601,
+        "total_touchpoints" => windowed.size,
+        "owner_filter" => owner_filter,
+        "cohort_filter" => cohort_filter,
+        "weekdays" => weekdays
+      }
+    end
+
     def gap_report(lookback_days, lookahead_days)
       data = load_store
       today = Date.today

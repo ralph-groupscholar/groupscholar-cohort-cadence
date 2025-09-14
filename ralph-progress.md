@@ -86,6 +86,11 @@
 - Implemented coverage-report CLI command and rendering with weekly counts.
 - Added coverage report tests and documented the workflow in the README.
 
+## Iteration 133
+- Added weekday-report command to summarize touchpoints by weekday with owner/cohort filters.
+- Implemented weekday report aggregation in the store and CLI rendering output.
+- Documented weekday report usage in the README and added tests.
+
 ## Iteration 104
 - Expanded owner capacity reporting to include zero-count weeks within the window.
 - Adjusted owner capacity tests and docs to reflect the fuller weekly coverage view.

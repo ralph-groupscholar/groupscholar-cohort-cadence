@@ -13,6 +13,7 @@ bin/cohort-cadence export-ics --days 90 --output data/cadence.ics
 bin/cohort-cadence owner-load --days 30
 bin/cohort-cadence owner-balance --days 30 --threshold 0.25
 bin/cohort-cadence channel-report --lookback 30 --lookahead 30
+bin/cohort-cadence weekday-report --lookback 30 --lookahead 30
 bin/cohort-cadence status --stale-days 21 --lookahead 30
 bin/cohort-cadence cohort-report --cohort "Spring Fellows" --lookback 45 --lookahead 30
 bin/cohort-cadence gap-report --lookback 30 --lookahead 30 --status at-risk
@@ -116,6 +117,21 @@ Filter by owner or cohort:
 ```bash
 bin/cohort-cadence channel-report --lookback 45 --lookahead 21 --owner "Program Lead"
 bin/cohort-cadence channel-report --lookback 45 --lookahead 21 --cohort "Spring Fellows"
+```
+
+## Weekday Report
+
+Review touchpoints grouped by weekday across a combined lookback/lookahead window:
+
+```bash
+bin/cohort-cadence weekday-report --lookback 30 --lookahead 30
+```
+
+Filter by owner or cohort:
+
+```bash
+bin/cohort-cadence weekday-report --lookback 45 --lookahead 21 --owner "Program Lead"
+bin/cohort-cadence weekday-report --lookback 45 --lookahead 21 --cohort "Spring Fellows"
 ```
 
 ## Calendar Export

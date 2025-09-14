@@ -68,6 +68,13 @@ module GroupScholar
         cohort_filter = option_value("cohort")
         report = @store.channel_report(lookback_days, lookahead_days, owner_filter, cohort_filter)
         puts render_channel_report(report)
+      when "weekday-report"
+        lookback_days = (option_value("lookback") || "30").to_i
+        lookahead_days = (option_value("lookahead") || "30").to_i
+        owner_filter = option_value("owner")
+        cohort_filter = option_value("cohort")
+        report = @store.weekday_report(lookback_days, lookahead_days, owner_filter, cohort_filter)
+        puts render_weekday_report(report)
       when "status"
         stale_days = (option_value("stale-days") || "21").to_i
         lookahead_days = (option_value("lookahead") || "30").to_i
@@ -189,6 +196,41 @@ module GroupScholar
         end
       end
       lines.join("\n")
+    end
+
+    def render_weekday_report(report)
+      lines = []
+      lines << "# Weekday Touchpoint Report"
+      lines << "Generated: #{report["generated_at"]}"
+      lines << "Window: #{report["window_start"]} → #{report["window_end"]}"
+      lines << ""
+      lines << "- Total touchpoints: #{report["total_touchpoints"]}"
+      lines << "- Owner filter: #{report["owner_filter"] || "none"}"
+      lines << "- Cohort filter: #{report["cohort_filter"] || "none"}"
+      lines << ""
+
+      if report["total_touchpoints"].zero?
+        lines << "No touchpoints in the selected window."
+        return lines.join("\n")
+      end
+
+      report["weekdays"].each do |weekday|
+        lines << "## #{weekday["weekday"]} (#{weekday["count"]})"
+        if weekday["count"].zero?
+          lines << "No touchpoints."
+          lines << ""
+          next
+        end
+        lines << "- Past: #{weekday["past_count"]} | Upcoming: #{weekday["upcoming_count"]}"
+        lines << "- Owners: #{render_rollup(weekday["owners"])}"
+        lines << "- Cohorts: #{render_rollup(weekday["cohorts"])}"
+        weekday["touchpoints"].each do |touch|
+          lines << "- #{format_touchpoint(touch)}"
+        end
+        lines << ""
+      end
+
+      lines.join("\n").rstrip
     end
 
     def render_owner_balance(report)
@@ -723,6 +765,7 @@ module GroupScholar
           owner-load --days N [--owner NAME]
           owner-balance --days N [--threshold FLOAT]
           channel-report --lookback N --lookahead N [--owner NAME] [--cohort COHORT_ID_OR_NAME]
+          weekday-report --lookback N --lookahead N [--owner NAME] [--cohort COHORT_ID_OR_NAME]
           status --stale-days N --lookahead N
           cohort-report --cohort COHORT_ID_OR_NAME --lookback N --lookahead N
           gap-report --lookback N --lookahead N [--status at-risk|stale|unscheduled|on-track]
